@@ -1,7 +1,6 @@
-- # loseq-base-plugin
-	- logseq 插件
-- ## 功能
-- ## 待办
-- ## 演示
-- ## 鸣谢
+- # loseq-ai-auto-page
+  - Using AI to automatically tag blocks and pages
+- ## Demo
+  - ![demo](./20231101143749.gif)
 - ## 许可证
+  - [MIT](https://choosealicense.com/licenses/mit/)
