@@ -51,7 +51,7 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
   })
 }
 
-const setBlockTags = async (e) => {
+const setBlockTags = async (e: any) => {
   const block = await logseq.Editor.getBlock(e.uuid)
   if (block?.content) {
     const res = await getBlockTags(block?.content)
@@ -61,7 +61,7 @@ const setBlockTags = async (e) => {
   }
 }
 
-const setPageTags = async (e) => {
+const setPageTags = async (e: any) => {
   const page = await logseq.Editor.getPage(e.page)
   const tree = await logseq.Editor.getPageBlocksTree(e.page)
   if (!tree.length) return
