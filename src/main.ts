@@ -37,7 +37,12 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
       return res.json()
     }).then(res => {
       logseq.UI.closeMsg(loadingKey)
-      resolve(res)
+      if (res.error_code && res.error_msg) {
+        reject(res.error_msg)
+        logseq.UI.showMsg(res.error_msg, 'error')
+      } else {
+        resolve(res)
+      }
     }).catch(err => {
       reject(err)
       logseq.UI.closeMsg(loadingKey)
@@ -46,8 +51,8 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
   })
 }
 
-const setBlockTags = async () => {
-  const block = await logseq.Editor.getCurrentBlock();
+const setBlockTags = async (e) => {
+  const block = await logseq.Editor.getBlock(e.uuid)
   if (block?.content) {
     const res = await getBlockTags(block?.content)
     const tags = eval(extractCodeBlockFromMarkdown(res.result))
@@ -67,8 +72,6 @@ const setPageTags = async (e) => {
   const pageName = page?.["journal?"] ? page.journalDay?.toString().replace(/(\d{4})(\d{2})(\d{2})/, '$1_$2_$3') : page?.name
 
   const url = `file://${basePath}/${folder}/${pageName}.md`
-
-  console.log('pagel', page, url)
 
   const content = await fetch(url).then(res => {
     return res.text()
