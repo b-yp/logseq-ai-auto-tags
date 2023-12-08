@@ -6,11 +6,14 @@ import { logseq as PL } from "../package.json";
 
 const pluginId = PL.id;
 const loadingKey = 'loading'
+let access_token = ''
+
+const hasSpace = (str: string) => /\s/.test(str)
 
 const getBlockTags = (content: string): Promise<{ result: string }> => {
   return new Promise((resolve, reject) => {
     logseq.UI.showMsg('加载中...', 'warning', { key: loadingKey, timeout: 100000000 })
-    fetch(`https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro?access_token=24.9ea5bdaf838deb0a9a9543d1e4bbc1b3.2592000.1701168025.282335-41940014`, {
+    fetch(`https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro?access_token=${access_token}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -56,7 +59,7 @@ const setBlockTags = async (e: any) => {
   if (block?.content) {
     const res = await getBlockTags(block?.content)
     const tags = eval(extractCodeBlockFromMarkdown(res.result))
-    await logseq.Editor.updateBlock(block?.uuid, `${block.content} ${tags.map((i: string) => '#' + i).join(' ')}`)
+    await logseq.Editor.updateBlock(block?.uuid, `${block.content} ${tags.map((i: string) => `#${hasSpace(i) ? `[[${i}]]` : i}`).join(' ')}`)
     logseq.Editor.exitEditingMode()
   }
 }
@@ -103,14 +106,22 @@ const setPageTags = async (e: any) => {
   logseq.Editor.exitEditingMode()
 }
 
+const fetchAccessToken = async () => {
+  return fetch('https://api.ypll.xyz/api/yiyan').then(res => res.json())
+}
+
 async function main() {
   console.info(`#${pluginId}: MAIN`);
 
-  logseq.Editor.registerSlashCommand('🤖 AI auto tags', setBlockTags)
+  fetchAccessToken().then(res => {
+    access_token = res.access_token
 
-  logseq.Editor.registerBlockContextMenuItem('🤖 AI auto tags', setBlockTags)
+    logseq.Editor.registerSlashCommand('🤖 AI auto tags', setBlockTags)
 
-  logseq.App.registerPageMenuItem('🤖 AI auto tags', setPageTags)
+    logseq.Editor.registerBlockContextMenuItem('🤖 AI auto tags', setBlockTags)
+
+    logseq.App.registerPageMenuItem('🤖 AI auto tags', setPageTags)
+  })
 }
 
 logseq.ready(main).catch(console.error);
