@@ -1,3 +1,10 @@
+## [1.0.1](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.0.0...v1.0.1) (2023-12-08)
+
+
+### Bug Fixes
+
+* Resolved token expiration and tag space ([51821b8](https://github.com/b-yp/logseq-ai-auto-tags/commit/51821b8e59ae75cf10ed4299d283208ebd45eee6))
+
 # 1.0.0 (2023-11-01)
 
 
