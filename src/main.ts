@@ -1,7 +1,7 @@
 import "@logseq/libs";
+import { BlockEntity, BlockUUID, IHookEvent } from "@logseq/libs/dist/LSPlugin.user";
 
-import { extractCodeBlockFromMarkdown } from './utils'
-
+import { deepFirstTraversal, extractCodeBlockFromMarkdown } from './utils'
 import { logseq as PL } from "../package.json";
 
 const pluginId = PL.id;
@@ -54,17 +54,24 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
   })
 }
 
-const setBlockTags = async (e: any) => {
+const setBlockTags = async (e: IHookEvent & { uuid: BlockUUID }) => {
   const block = await logseq.Editor.getBlock(e.uuid)
-  if (block?.content) {
-    const res = await getBlockTags(block?.content)
+  const contents: string[] = []
+
+  if (!block) return
+  await deepFirstTraversal([block], async (obj: BlockEntity) => {
+    contents.push(obj.content)
+  })
+
+  if (contents.length) {
+    const res = await getBlockTags(contents.join('\n'))
     const tags = eval(extractCodeBlockFromMarkdown(res.result))
     await logseq.Editor.updateBlock(block?.uuid, `${block.content} ${tags.map((i: string) => `#${hasSpace(i) ? `[[${i}]]` : i}`).join(' ')}`)
     logseq.Editor.exitEditingMode()
   }
 }
 
-const setPageTags = async (e: any) => {
+const setPageTags = async (e: IHookEvent & { page: string }) => {
   const page = await logseq.Editor.getPage(e.page)
   const tree = await logseq.Editor.getPageBlocksTree(e.page)
   if (!tree.length) return
