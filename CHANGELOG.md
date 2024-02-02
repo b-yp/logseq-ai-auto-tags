@@ -1,3 +1,10 @@
+# [1.1.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.0.1...v1.1.0) (2024-02-02)
+
+
+### Features
+
+* Support recursive retrieval of all child node content under the current block and extract tags ([02cb233](https://github.com/b-yp/logseq-ai-auto-tags/commit/02cb2330b272d2429e8b56587b6eb8c511bfd0bd))
+
 ## [1.0.1](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.0.0...v1.0.1) (2023-12-08)
 
 
