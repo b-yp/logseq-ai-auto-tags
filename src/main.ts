@@ -42,7 +42,7 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
       logseq.UI.closeMsg(loadingKey)
       if (res.error_code && res.error_msg) {
         reject(res.error_msg)
-        logseq.UI.showMsg(res.error_msg, 'error')
+        logseq.UI.showMsg(`${res.error_msg} \n 请联系QQ: 1031984293`, 'error')
       } else {
         resolve(res)
       }
