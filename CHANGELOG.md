@@ -1,3 +1,10 @@
+# [1.2.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.1.0...v1.2.0) (2024-02-28)
+
+
+### Features
+
+* add QQ ([01f6d40](https://github.com/b-yp/logseq-ai-auto-tags/commit/01f6d4082e97b4a211401ccdfe743db90fcd9da9))
+
 # [1.1.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.0.1...v1.1.0) (2024-02-02)
 
 
