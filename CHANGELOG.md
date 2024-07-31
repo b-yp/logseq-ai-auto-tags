@@ -1,3 +1,16 @@
+# [1.3.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.2.0...v1.3.0) (2024-07-31)
+
+
+### Bug Fixes
+
+* Upgrade the pnpm version to fix the building error. ([a843ea0](https://github.com/b-yp/logseq-ai-auto-tags/commit/a843ea0b56df79fa4f00238f7937d6d714cdf817))
+
+
+### Features
+
+* After the token expires, automatically obtain a new token. ([a514fc8](https://github.com/b-yp/logseq-ai-auto-tags/commit/a514fc8dfb6fdffde5d16311bf164a20cb8dfb15))
+* Update readme ([db207b8](https://github.com/b-yp/logseq-ai-auto-tags/commit/db207b8c5ebfa6ec464cf8cffcdda1f51b001c58))
+
 # [1.2.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.1.0...v1.2.0) (2024-02-28)
 
 
