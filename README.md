@@ -1,6 +1,6 @@
-- # loseq-ai-auto-page
+- # loseq-ai-auto-tags
   - Using AI to automatically tag blocks and pages
 - ## Demo
   - ![demo](./20231101143749.gif)
-- ## 许可证
+- ## Licence
   - [MIT](https://choosealicense.com/licenses/mit/)
