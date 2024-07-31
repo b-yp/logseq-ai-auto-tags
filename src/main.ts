@@ -21,7 +21,6 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
       body: JSON.stringify({
         messages: [
           {
-
             role: 'user',
             content: "你好，你现在要做一个从文字中提炼标签的助手，有以下要求：1. 要求提炼的标签必须准确，尽可能从原文取词, 2. 提炼的标签尽可能少，只有最符合主题的才需要被提炼, 3. 标签中间不能有空格。接下来我会发一段文字，文字内容会用六角括号包裹，你需要提炼出来标签并且用 JavaScript 中数组的形式返回，例如我会发〔鲁迅是中国最伟大的作家之一〕，你要回答 ```['鲁迅', '作家']``` ，注意，回答内容必须要用 ``` 包起来，明白了吗？"
           },
@@ -43,6 +42,7 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
       if (res.error_code && res.error_msg) {
         reject(res.error_msg)
         logseq.UI.showMsg(`${res.error_msg} \n 请联系QQ: 1031984293`, 'error')
+        init()
       } else {
         resolve(res)
       }
@@ -50,6 +50,7 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
       reject(err)
       logseq.UI.closeMsg(loadingKey)
       logseq.UI.showMsg(JSON.stringify(err), 'error')
+      init()
     })
   })
 }
@@ -117,9 +118,7 @@ const fetchAccessToken = async () => {
   return fetch('https://api.ypll.xyz/api/yiyan').then(res => res.json())
 }
 
-async function main() {
-  console.info(`#${pluginId}: MAIN`);
-
+const init = () => {
   fetchAccessToken().then(res => {
     access_token = res.access_token
 
@@ -131,4 +130,10 @@ async function main() {
   })
 }
 
-logseq.ready(main).catch(console.error);
+async function main() {
+  console.info(`#${pluginId}: MAIN`)
+
+  init()
+}
+
+logseq.ready(main).catch(console.error)
