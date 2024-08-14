@@ -1,39 +1,27 @@
 import "@logseq/libs";
 import { BlockEntity, BlockUUID, IHookEvent } from "@logseq/libs/dist/LSPlugin.user";
 
-import { deepFirstTraversal, extractCodeBlockFromMarkdown } from './utils'
+import { deepFirstTraversal } from './utils'
 import { logseq as PL } from "../package.json";
 
+const BASE_URL = 'https://api.ypll.xyz'
 const pluginId = PL.id;
 const loadingKey = 'loading'
-let access_token = ''
 
 const hasSpace = (str: string) => /\s/.test(str)
 
-const getBlockTags = (content: string): Promise<{ result: string }> => {
+const getBlockTags = (content: string): Promise<string[]> => {
   return new Promise((resolve, reject) => {
     logseq.UI.showMsg('加载中...', 'warning', { key: loadingKey, timeout: 100000000 })
-    fetch(`https://aip.baidubce.com/rpc/2.0/ai_custom/v1/wenxinworkshop/chat/completions_pro?access_token=${access_token}`, {
+
+    fetch(`${BASE_URL}/api/yiyan`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        messages: [
-          {
-            role: 'user',
-            content: "你好，你现在要做一个从文字中提炼标签的助手，有以下要求：1. 要求提炼的标签必须准确，尽可能从原文取词, 2. 提炼的标签尽可能少，只有最符合主题的才需要被提炼, 3. 标签中间不能有空格。接下来我会发一段文字，文字内容会用六角括号包裹，你需要提炼出来标签并且用 JavaScript 中数组的形式返回，例如我会发〔鲁迅是中国最伟大的作家之一〕，你要回答 ```['鲁迅', '作家']``` ，注意，回答内容必须要用 ``` 包起来，明白了吗？"
-          },
-          {
-            role: 'assistant',
-            content: `明白了，请输入您需要提炼标签的文字。`,
-          },
-          {
-            role: 'user',
-            content: `〔${content}〕`,
-          }
-        ],
-        temperature: 0.1,
+        type: 'auto-tags',
+        content: `〔${content}〕`
       })
     }).then(res => {
       return res.json()
@@ -41,16 +29,14 @@ const getBlockTags = (content: string): Promise<{ result: string }> => {
       logseq.UI.closeMsg(loadingKey)
       if (res.error_code && res.error_msg) {
         reject(res.error_msg)
-        logseq.UI.showMsg(`${res.error_msg} \n 请联系QQ: 1031984293`, 'error')
-        init()
+        logseq.UI.showMsg(`${JSON.stringify(res.error_msg)}`, 'error')
       } else {
-        resolve(res)
+        resolve(eval(res))
       }
     }).catch(err => {
       reject(err)
       logseq.UI.closeMsg(loadingKey)
       logseq.UI.showMsg(JSON.stringify(err), 'error')
-      init()
     })
   })
 }
@@ -65,8 +51,8 @@ const setBlockTags = async (e: IHookEvent & { uuid: BlockUUID }) => {
   })
 
   if (contents.length) {
-    const res = await getBlockTags(contents.join('\n'))
-    const tags = eval(extractCodeBlockFromMarkdown(res.result))
+    const tags = await getBlockTags(contents.join('\n'))
+    if (!Array.isArray(tags)) return
     await logseq.Editor.updateBlock(block?.uuid, `${block.content} ${tags.map((i: string) => `#${hasSpace(i) ? `[[${i}]]` : i}`).join(' ')}`)
     logseq.Editor.exitEditingMode()
   }
@@ -88,8 +74,8 @@ const setPageTags = async (e: IHookEvent & { page: string }) => {
     return res.text()
   })
 
-  const res = await getBlockTags(content)
-  const tags = eval(extractCodeBlockFromMarkdown(res.result))
+  const tags = await getBlockTags(content)
+  if (!Array.isArray(tags)) return
 
   // Using regular expressions to match key:: value format
   const regex = /(\w+)::\s*([^]+?)(?:\n|$)/g;
@@ -114,26 +100,12 @@ const setPageTags = async (e: IHookEvent & { page: string }) => {
   logseq.Editor.exitEditingMode()
 }
 
-const fetchAccessToken = async () => {
-  return fetch('https://api.ypll.xyz/api/yiyan').then(res => res.json())
-}
-
-const init = () => {
-  fetchAccessToken().then(res => {
-    access_token = res.access_token
-
-    logseq.Editor.registerSlashCommand('🤖 AI auto tags', setBlockTags)
-
-    logseq.Editor.registerBlockContextMenuItem('🤖 AI auto tags', setBlockTags)
-
-    logseq.App.registerPageMenuItem('🤖 AI auto tags', setPageTags)
-  })
-}
-
 async function main() {
   console.info(`#${pluginId}: MAIN`)
 
-  init()
+  logseq.Editor.registerSlashCommand('🤖 AI auto tags', setBlockTags)
+  logseq.Editor.registerBlockContextMenuItem('🤖 AI auto tags', setBlockTags)
+  logseq.App.registerPageMenuItem('🤖 AI auto tags', setPageTags)
 }
 
 logseq.ready(main).catch(console.error)
