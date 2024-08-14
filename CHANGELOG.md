@@ -1,3 +1,10 @@
+# [1.4.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.3.0...v1.4.0) (2024-08-14)
+
+
+### Features
+
+* AI Model Interface Replacement. ([7c0910f](https://github.com/b-yp/logseq-ai-auto-tags/commit/7c0910f2c77e21298c3c030e162724b6a88f2111))
+
 # [1.3.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.2.0...v1.3.0) (2024-07-31)
 
 
