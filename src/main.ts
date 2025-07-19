@@ -1,47 +1,85 @@
 import "@logseq/libs";
-import { BlockEntity, BlockUUID, IHookEvent } from "@logseq/libs/dist/LSPlugin.user";
+import { BlockEntity, BlockUUID, IHookEvent, SettingSchemaDesc } from "@logseq/libs/dist/LSPlugin.user";
+import OpenAI from "openai";
 
 import { deepFirstTraversal } from './utils'
 import { logseq as PL } from "../package.json";
 
-const BASE_URL = 'https://api.ypll.xyz'
 const pluginId = PL.id;
 const loadingKey = 'loading'
 
 const hasSpace = (str: string) => /\s/.test(str)
 
-const getBlockTags = (content: string): Promise<string[]> => {
-  return new Promise((resolve, reject) => {
-    logseq.UI.showMsg('加载中...', 'warning', { key: loadingKey, timeout: 100000000 })
+const getBlockTags = async (content: string): Promise<string[]> => {
+  const { apiKey, apiBaseUrl, model } = logseq.settings!;
 
-    fetch(`${BASE_URL}/api/yiyan`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        type: 'auto-tags',
-        content: `〔${content}〕`
-      })
-    }).then(res => {
-      return res.json()
-    }).then(res => {
-      logseq.UI.closeMsg(loadingKey)
-      if (res.error_code && res.error_msg) {
-        reject(res.error_msg)
-        logseq.UI.showMsg(`${JSON.stringify(res.error_msg)}`, 'error')
-      } else {
-        resolve(eval(res))
+  const openai = new OpenAI({
+    apiKey,
+    baseURL: apiBaseUrl,
+    dangerouslyAllowBrowser: true,
+  });
+
+  logseq.UI.showMsg('Generating tags with AI...', 'warning', { key: loadingKey, timeout: 100000000 });
+
+  try {
+    const systemPrompt = `You are a highly intelligent tagging assistant. Your goal is to generate a concise list of highly relevant tags for the provided text. Follow these rules strictly: 1. Generate a maximum of 5 tags. 2. The tags must be extremely relevant to the core concepts of the text. 3. The language of the tags MUST match the language of the provided text (e.g., if the text is in Chinese, the tags must be in Chinese). 4. Return the tags as a JSON object with a single key "tags" containing an array of strings. For example: {"tags": ["核心概念1", "关键主题2"]}.`;
+
+    const response = await openai.chat.completions.create({
+      model: model,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: content },
+      ],
+      response_format: { type: "json_object" },
+    });
+
+    logseq.UI.closeMsg(loadingKey);
+
+    const result = response.choices[0].message?.content;
+    if (result) {
+      // The result is a JSON string like `{"tags": ["tag1", "tag2"]}`
+      // We need to parse it to get the array.
+      const parsedResult = JSON.parse(result);
+      // Assuming the AI returns a JSON object with a "tags" key.
+      // This might need adjustment based on the actual model's output format.
+      // A more robust implementation could check for different possible keys.
+      const tags = parsedResult.tags || parsedResult.Keywords || parsedResult.keywords || parsedResult;
+      if (Array.isArray(tags)) {
+        return tags;
       }
-    }).catch(err => {
-      reject(err)
-      logseq.UI.closeMsg(loadingKey)
-      logseq.UI.showMsg(JSON.stringify(err), 'error')
-    })
-  })
+    }
+    throw new Error('Failed to parse tags from AI response.');
+  } catch (err) {
+    logseq.UI.closeMsg(loadingKey);
+    logseq.UI.showMsg(`Error generating tags: ${(err as Error).message}`, 'error');
+    throw err;
+  }
+}
+
+const checkSettings = (): boolean => {
+  if (!logseq.settings) {
+    logseq.UI.showMsg('Settings are not available yet. Please try again later.', 'error');
+    return false;
+  }
+  const requiredSettings = {
+    apiKey: 'API Key',
+    apiBaseUrl: 'API Base URL',
+    model: 'Model Name'
+  };
+
+  for (const [key, title] of Object.entries(requiredSettings)) {
+    if (!logseq.settings[key]) {
+      logseq.UI.showMsg(`${title} is not set. Please configure it in the plugin settings.`, 'error');
+      return false;
+    }
+  }
+  return true;
 }
 
 const setBlockTags = async (e: IHookEvent & { uuid: BlockUUID }) => {
+  if (!checkSettings()) {
+    return;
+  }
   const block = await logseq.Editor.getBlock(e.uuid)
   const contents: string[] = []
 
@@ -59,6 +97,9 @@ const setBlockTags = async (e: IHookEvent & { uuid: BlockUUID }) => {
 }
 
 const setPageTags = async (e: IHookEvent & { page: string }) => {
+  if (!checkSettings()) {
+    return;
+  }
   const page = await logseq.Editor.getPage(e.page)
   const tree = await logseq.Editor.getPageBlocksTree(e.page)
   if (!tree.length) return
@@ -100,8 +141,34 @@ const setPageTags = async (e: IHookEvent & { page: string }) => {
   logseq.Editor.exitEditingMode()
 }
 
+const settingsSchema: SettingSchemaDesc[] = [
+  {
+    key: 'apiKey',
+    type: 'string',
+    default: '',
+    title: 'API Key',
+    description: 'Your API Key for the AI service (e.g., OpenAI).',
+  },
+  {
+    key: 'apiBaseUrl',
+    type: 'string',
+    default: 'https://api.openai.com/v1',
+    title: 'API Base URL',
+    description: 'The base URL for the API. Useful for proxy or compatible services.',
+  },
+  {
+    key: 'model',
+    type: 'string',
+    default: 'gpt-3.5-turbo',
+    title: 'Model Name',
+    description: 'The name of the model to use for generating tags (e.g., gpt-3.5-turbo).',
+  },
+];
+
 async function main() {
   console.info(`#${pluginId}: MAIN`)
+
+  logseq.useSettingsSchema(settingsSchema);
 
   logseq.Editor.registerSlashCommand('🤖 AI auto tags', setBlockTags)
   logseq.Editor.registerBlockContextMenuItem('🤖 AI auto tags', setBlockTags)
