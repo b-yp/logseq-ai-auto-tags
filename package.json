@@ -9,7 +9,8 @@
   },
   "license": "MIT",
   "dependencies": {
-    "@logseq/libs": "^0.0.15"
+    "@logseq/libs": "^0.0.15",
+    "openai": "^5.10.1"
   },
   "devDependencies": {
     "@semantic-release/changelog": "6.0.3",
