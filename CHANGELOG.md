@@ -1,3 +1,10 @@
+# [1.5.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.4.0...v1.5.0) (2025-07-19)
+
+
+### Features
+
+* support custom API key and model ([569ca25](https://github.com/b-yp/logseq-ai-auto-tags/commit/569ca257b02e9ab739612bd77252413ce3bbd6fb))
+
 # [1.4.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.3.0...v1.4.0) (2024-08-14)
 
 
