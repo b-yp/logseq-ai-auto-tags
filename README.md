@@ -98,7 +98,7 @@ If you prefer not to host models locally but want high performance at little to 
 
 ### Requirements
 - Logseq version `0.9.0` or higher.
-- A valid API key or local endpoint connection.
+- A valid API key or local LLM endpoint connection.
 - An active internet connection (unless using a local LLM like Ollama).
 
 ### Limitations
@@ -114,7 +114,6 @@ If you prefer not to host models locally but want high performance at little to 
 - Verify your API Key is active and has remaining balance/credits.
 - Double-check your **API Base URL** formatting (ensure it includes the `/v1` suffix if required by your provider).
 - Ensure the **Model Name** matches your provider's expected string exactly.
-- Press `F12` to open the browser console and inspect for specific error logs.
 
 ### Tags in the Wrong Language
 - While the system prompt forces the AI to match the source text language, small or ambiguous text blocks can sometimes confuse it. Try adding a brief language hint (write: English Tags) to your content if this happens consistently. If the model is still returning unexpected results, consider switching to a more capable model.
