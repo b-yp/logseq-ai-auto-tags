@@ -118,7 +118,7 @@ If you prefer not to host models locally but want high performance at little to 
 ### Tags in the Wrong Language
 - While the system prompt forces the AI to match the source text language, small or ambiguous text blocks can sometimes confuse it. Try adding a brief language hint (write: English Tags) to your content if this happens consistently. If the model is still returning unexpected results, consider switching to a more capable model.
 - As a last resort, it might help to update the instruction in the installed plugin's package (Plugins > Logseq AI Auto Tags > ⚙️ Settings > Open package) to explicitly specify the desired language:  
-Search for this string and replace the mentioned language and example tags with your desired target language: `"You are a highly intelligent tagging assistant. Your goal is to generate a concise list of highly relevant tags for the provided text. Follow these rules strictly: 1. Generate a maximum of 5 tags. 2. The tags must be extremely relevant to the core concepts of the text. 3. The language of the tags MUST match the language of the provided text (e.g., if the text is in **English**, the tags must be in **English**). 4. Return the tags as a JSON object with a single key "tags" containing an array of strings. For example: {"tags": ["Concept 1", "Core Idea 2"]}.`;"
+Search for this string and replace the mentioned language and example tags with your desired target language: `"You are a highly intelligent tagging assistant. Your goal is to generate a concise list of highly relevant tags for the provided text. ... The language of the tags MUST match the language of the provided text (e.g., if the text is in **English**, the tags must be in **English**). 4. Return the tags as a JSON object with a single key "tags" containing an array of strings. For example: {"tags": ["Concept1", "CoreIdea2"]}.`;"
 
 
 ### API Connection / CORS Errors
@@ -149,7 +149,7 @@ Search for this string and replace the mentioned language and example tags with 
 
 ```bash
 # Clone the repository
-git clone [https://github.com/b-yp/logseq-ai-auto-tags.git](https://github.com/b-yp/logseq-ai-auto-tags.git)
+git clone https://github.com/b-yp/logseq-ai-auto-tags.git
 cd logseq-ai-auto-tags
 
 # Install dependencies
@@ -160,9 +160,12 @@ pnpm dev
 
 # Build for production
 pnpm build
+```
+
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
 ---
 
 **Plugin ID:** `byp-logseq-ai-auto-tags`

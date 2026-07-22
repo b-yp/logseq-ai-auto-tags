@@ -2,7 +2,7 @@ import "@logseq/libs";
 import { BlockEntity, BlockUUID, IHookEvent, SettingSchemaDesc } from "@logseq/libs/dist/LSPlugin.user";
 import OpenAI from "openai";
 
-import { deepFirstTraversal } from './utils'
+import { deepFirstTraversal, getAllGraphTags } from './utils'
 import { logseq as PL } from "../package.json";
 
 const pluginId = PL.id;
@@ -10,8 +10,127 @@ const loadingKey = 'loading'
 
 const hasSpace = (str: string) => /\s/.test(str)
 
+/**
+ * Normalize a string for cheap relevance matching: lowercase, strip non-alphanumeric
+ * characters, and collapse PascalCase / camelCase into space-separated words so
+ * that "ArtificialIntelligence" matches "artificial intelligence" in the content.
+ *
+ * The PascalCase split is a no-op for CJK text (no casing to split on), so this is
+ * safe to run on mixed-script content.
+ */
+const normalizeForMatch = (str: string): string =>
+  str
+    .replace(/([a-z0-9])([A-Z])/g, '$1 $2') // split PascalCase / camelCase
+    .toLowerCase()
+    .replace(/[^a-z0-9\s\u4e00-\u9fff\u3040-\u30ff\uac00-\ud7af]/g, ' ') // keep Latin, CJK, kana, hangul
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/**
+ * Locale-aware word segmenter. `Intl.Segmenter` with `granularity: 'word'` handles
+ * space-delimited scripts (Latin, Cyrillic, ...) AND scripts without word
+ * boundaries (CJK, Thai, ...), so it works for Chinese/Japanese/Korean tags where
+ * a naive `split(' ')` would return the whole string as one token.
+ *
+ * The locale is determined by the `language` plugin setting. When the setting is
+ * empty/auto, `undefined` is passed so the runtime picks the default — which is
+ * fine because segmentation is script-aware rather than locale-dependent for our
+ * purposes. When a specific BCP 47 tag is set (e.g. "ja", "zh-Hans", "en"), the
+ * segmenter uses it, which can improve word-boundary detection for that locale.
+ *
+ * The segmenter is constructed lazily and cached per locale so we don't rebuild it
+ * on every `tokenize` call.
+ */
+let _segmenter: Intl.Segmenter | null = null;
+let _segmenterLocale: string | undefined | null = null; // null = sentinel for "not yet initialized"
+
+const getWordSegmenter = (): Intl.Segmenter => {
+  const locale = logseq.settings?.language || undefined;
+  if (_segmenter === null || _segmenterLocale !== locale) {
+    _segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
+    _segmenterLocale = locale;
+  }
+  return _segmenter;
+};
+
+/**
+ * Tokenize a normalized string into lowercase word tokens.
+ *
+ * - Uses `Intl.Segmenter` so CJK text is segmented into meaningful units instead
+ *   of being treated as one giant token.
+ * - Drops non-word-like segments (punctuation, whitespace).
+ *
+ * No stop-word list or minimum-length floor is applied: those heuristics are
+ * language-specific (Latin-centric) and would silently drop valid tokens in
+ * CJK and other scripts where single-character words are common.
+ */
+const tokenize = (str: string): string[] => {
+  const tokens: string[] = [];
+  for (const seg of getWordSegmenter().segment(str)) {
+    if (!seg.isWordLike) continue;
+    tokens.push(seg.segment.toLowerCase());
+  }
+  return tokens;
+};
+
+/**
+ * Cheap pre-filter for the existing-tags shortlist.
+ *
+ * Keeps a tag if there is any token overlap between the tag and the content in
+ * either direction:
+ *  - the tag (or any of its words) appears as a substring of the content, or
+ *  - any word of the content appears as a substring of the tag.
+ *
+ * This is intentionally fuzzy and fast (no embeddings, no API calls) — its only
+ * job is to shrink the candidate set the model sees so it's more likely to reuse
+ * existing tags instead of inventing divergent ones.
+ *
+ * If the filter is too aggressive and yields fewer than `minCandidates`, fall back
+ * to the capped unfiltered shortlist so the model still has existing tags to reuse.
+ */
+const filterRelevantTags = (
+  tags: string[],
+  content: string,
+  minCandidates = 5,
+  maxCandidates = 200,
+): string[] => {
+  if (tags.length === 0) return [];
+
+  const normalizedContent = normalizeForMatch(content);
+  if (!normalizedContent) return tags.slice(0, maxCandidates);
+
+  const contentWords = new Set(tokenize(normalizedContent));
+
+  const matched = tags.filter(tag => {
+    const normalizedTag = normalizeForMatch(tag);
+    if (!normalizedTag) return false;
+
+    // 1. Whole tag appears in the content (catches multi-word tags).
+    if (normalizedContent.includes(normalizedTag)) return true;
+
+    // 2. Any word of the tag appears in the content.
+    const tagWords = tokenize(normalizedTag);
+    if (tagWords.some(w => normalizedContent.includes(w))) return true;
+
+    // 3. Any content word appears inside the tag (catches content terms that are
+    //    a substring of a PascalCase tag, e.g. content "market" vs tag "LaborMarket").
+    for (const word of contentWords) {
+      if (normalizedTag.includes(word)) return true;
+    }
+    return false;
+  });
+
+  // Fall back to the unfiltered (but capped) shortlist if too few matched,
+  // so the model still has existing tags to consider for reuse.
+  if (matched.length < minCandidates) {
+    return tags.slice(0, maxCandidates);
+  }
+
+  return matched.slice(0, maxCandidates);
+}
+
 const getBlockTags = async (content: string): Promise<string[]> => {
-  const { apiKey, apiBaseUrl, model } = logseq.settings!;
+  const { apiKey, apiBaseUrl, model, sendExistingTags, maxExistingTags, language } = logseq.settings!;
 
   const openai = new OpenAI({
     apiKey,
@@ -22,7 +141,41 @@ const getBlockTags = async (content: string): Promise<string[]> => {
   logseq.UI.showMsg('Generating tags with AI...', 'warning', { key: loadingKey, timeout: 100000000 });
 
   try {
-    const systemPrompt = `You are a highly intelligent tagging assistant. Your goal is to generate a concise list of highly relevant tags for the provided text. Follow these rules strictly: 1. Generate a maximum of 5 tags. 2. The tags must be extremely relevant to the core concepts of the text. 3. The language of the tags MUST match the language of the provided text (e.g., if the text is in Chinese, the tags must be in Chinese). 4. Return the tags as a JSON object with a single key "tags" containing an array of strings. For example: {"tags": ["核心概念1", "关键主题2"]}.`;
+    // Retrieve the user's existing tags so the AI can prioritize reusing them over inventing new (divergent) tags.
+    // Skipped entirely when the user disables the "Send Existing Tags" setting.
+    // `maxExistingTags` caps how many are sent; clamp to [1, 200] to guard against bad settings.
+    const maxTags = Math.min(Math.max(Number(maxExistingTags) || 5, 1), 200);
+    const tagCandidates = sendExistingTags
+      ? filterRelevantTags(await getAllGraphTags().then(tags => tags.slice(0, 200)), content, 5, maxTags)
+      : [];
+    const hasExistingTags = tagCandidates.length > 0;
+
+    let systemPrompt = `You are a highly intelligent tagging assistant. Your goal is to generate a concise list of highly relevant tags for the provided text.\n`;
+
+    if (hasExistingTags) {
+      systemPrompt += `Here is a shortlist of the user's existing tags that might be relevant to this text: [${tagCandidates.join(", ")}]\n`;
+      //NOTE: If a tag/page name ever contains ], backticks, or newlines, it could break the prompt structure. A sanitize step (strip/escape control chars, or wrap the list in a fenced block) would harden it.
+    }
+
+    systemPrompt += `Follow these rules strictly:\n`;
+
+    if (hasExistingTags) {
+      systemPrompt += `0. PRIORITIZE EXISTING TAGS: If an existing tag accurately describes a core concept, use it exactly as spelled above. Only create a new tag if none of the existing tags are a good fit.\n`;
+    }
+
+    systemPrompt += `1. QUANTITY & RELEVANCE: Generate a maximum of 5 tags. They must be extremely relevant to the core concepts of the text.
+2. LEXICAL RULES FOR NEW TAGS: If you must create a brand new tag, you MUST format it using these rules:
+   - Use singular nouns (e.g., prefer "Market" over "Markets").
+   - Use PascalCase for multi-word tags with no spaces (e.g., "LaborMarket", "ArtificialIntelligence").`;
+
+    if (hasExistingTags) {
+      systemPrompt += `
+   - Avoid creating synonyms for concepts that are already covered by the existing tags provided above.`;
+    }
+
+    systemPrompt += `
+3. LANGUAGE: ${language ? `The language of any new tags MUST be ${language}.` : 'The language of any new tags MUST match the language of the provided text.'}
+4. OUTPUT FORMAT: Return the tags as a JSON object with a single key "tags" containing an array of strings. For example: {"tags": ["CoreConcept", "OtherTopic"]}.`;
 
     const response = await openai.chat.completions.create({
       model: model,
@@ -30,7 +183,8 @@ const getBlockTags = async (content: string): Promise<string[]> => {
         { role: "system", content: systemPrompt },
         { role: "user", content: content },
       ],
-      response_format: { type: "json_object" },
+      response_format: { type: "json_object" }, 
+      //NOTE: Note some OpenAI-compatible providers/models don't support this; if you get a 400 error, we could try to parse the raw text output instead.
     });
 
     logseq.UI.closeMsg(loadingKey);
@@ -159,9 +313,30 @@ const settingsSchema: SettingSchemaDesc[] = [
   {
     key: 'model',
     type: 'string',
-    default: 'gpt-3.5-turbo',
+    default: 'gpt-5-mini',
     title: 'Model Name',
-    description: 'The name of the model to use for generating tags (e.g., gpt-3.5-turbo).',
+    description: 'The name of the model to use for generating tags (e.g., gpt-5-mini).',
+  },
+  {
+    key: 'sendExistingTags',
+    type: 'boolean',
+    default: false,
+    title: 'Send Existing Tags',
+    description: 'When enabled, the plugin retrieves your existing graph tags and sends them to the AI so it can prioritize reusing them. Disable to always generate fresh tags without the existing-tags context.',
+  },
+  {
+    key: 'maxExistingTags',
+    type: 'number',
+    default: 5,
+    title: 'Max Existing Tags to Send',
+    description: 'Maximum number of existing tags to include in the prompt (after pre-filtering). Higher values give the AI more context but increase token usage and cost. Range: 1–200.',
+  },
+  {
+    key: 'language',
+    type: 'string',
+    default: '',
+    title: 'Language / Locale',
+    description: 'Force the AI to generate tags in this language and use it for word segmentation. Enter a BCP 47 language tag (e.g. "en", "ja", "zh-Hans", "de"). Leave empty to auto-detect from the text content.',
   },
 ];
 
