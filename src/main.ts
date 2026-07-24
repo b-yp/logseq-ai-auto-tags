@@ -32,23 +32,19 @@ const normalizeForMatch = (str: string): string =>
  * boundaries (CJK, Thai, ...), so it works for Chinese/Japanese/Korean tags where
  * a naive `split(' ')` would return the whole string as one token.
  *
- * The locale is determined by the `language` plugin setting. When the setting is
- * empty/auto, `undefined` is passed so the runtime picks the default — which is
- * fine because segmentation is script-aware rather than locale-dependent for our
- * purposes. When a specific BCP 47 tag is set (e.g. "ja", "zh-Hans", "en"), the
- * segmenter uses it, which can improve word-boundary detection for that locale.
+ * The segmenter always uses the runtime default locale (`undefined`). Segmentation
+ * is script-aware rather than locale-dependent for our purposes, so the default
+ * fallback works fine for all scripts. The `language` plugin setting is only used
+ * to instruct the AI which language to generate tags in — it is not passed here.
  *
- * The segmenter is constructed lazily and cached per locale so we don't rebuild it
- * on every `tokenize` call.
+ * The segmenter is constructed lazily and cached so we don't rebuild it on every
+ * `tokenize` call.
  */
 let _segmenter: Intl.Segmenter | null = null;
-let _segmenterLocale: string | undefined | null = null; // null = sentinel for "not yet initialized"
 
 const getWordSegmenter = (): Intl.Segmenter => {
-  const locale = logseq.settings?.language || undefined;
-  if (_segmenter === null || _segmenterLocale !== locale) {
-    _segmenter = new Intl.Segmenter(locale, { granularity: 'word' });
-    _segmenterLocale = locale;
+  if (_segmenter === null) {
+    _segmenter = new Intl.Segmenter(undefined, { granularity: 'word' });
   }
   return _segmenter;
 };
@@ -184,20 +180,16 @@ const getBlockTags = async (content: string): Promise<string[]> => {
         { role: "user", content: content },
       ],
       response_format: { type: "json_object" }, 
-      //NOTE: Note some OpenAI-compatible providers/models don't support this; if you get a 400 error, we could try to parse the raw text output instead.
+      //NOTE: Some OpenAI-compatible providers/models don't support setting the response_format.
     });
 
     logseq.UI.closeMsg(loadingKey);
 
     const result = response.choices[0].message?.content;
     if (result) {
-      // The result is a JSON string like `{"tags": ["tag1", "tag2"]}`
-      // We need to parse it to get the array.
+      // The result should be a JSON string like `{"tags": ["tag1", "tag2"]}`
       const parsedResult = JSON.parse(result);
-      // Assuming the AI returns a JSON object with a "tags" key.
-      // This might need adjustment based on the actual model's output format.
-      // A more robust implementation could check for different possible keys.
-      const tags = parsedResult.tags || parsedResult.Keywords || parsedResult.keywords || parsedResult;
+      const tags = parsedResult.tags || parsedResult.Tags || parsedResult;
       if (Array.isArray(tags)) {
         return tags;
       }
@@ -333,10 +325,105 @@ const settingsSchema: SettingSchemaDesc[] = [
   },
   {
     key: 'language',
-    type: 'string',
+    type: 'enum',
     default: '',
     title: 'Language / Locale',
-    description: 'Force the AI to generate tags in this language and use it for word segmentation. Enter a BCP 47 language tag (e.g. "en", "ja", "zh-Hans", "de"). Leave empty to auto-detect from the text content.',
+    description: 'Force the AI to generate tags in this language. Select a language from the drop-down (shown as "EnglishName (NativeName)"). Leave empty to auto-detect from the text content.',
+    enumChoices: [
+      '',
+      'Afrikaans',
+      'Albanian (shqip)',
+      'Arabic (العربية)',
+      'Armenian (Հայերեն)',
+      'Assamese (অসমীয়া)',
+      'Azerbaijani (Azərbaycan)',
+      'Bashkir (Башҡорт)',
+      'Basque (euskara)',
+      'Bengali (বাংলা)',
+      'Bokmål (norsk bokmål)',
+      'Bulgarian (български)',
+      'Burmese (မြန်မာဘာသာ)',
+      'Catalan (català)',
+      'Chinese (中文)',
+      'Croatian (hrvatski)',
+      'Czech (čeština)',
+      'Danish (dansk)',
+      'Dutch (Nederlands)',
+      'English',
+      'Estonian (eesti)',
+      'Faroese (føroyskt)',
+      'Filipino',
+      'Finnish (suomi)',
+      'French (français)',
+      'Galician (galego)',
+      'Georgian (ქართული)',
+      'German (Deutsch)',
+      'Greek (Ελληνικά)',
+      'Gujarati (ગુજરાતી)',
+      'Hebrew (עברית)',
+      'Hindi (हिंदी)',
+      'Hungarian (magyar)',
+      'Icelandic (íslenska)',
+      'Indonesian (Bahasa Indonesia)',
+      'Irish (Gaeilge)',
+      'Italian (italiano)',
+      'Japanese (日本語)',
+      'Kannada (ಕನ್ನಡ)',
+      'Kazakh (Қазақша)',
+      'Khmer (ខ្មែរ)',
+      'Kinyarwanda',
+      'Kiswahili',
+      'Korean (한국어)',
+      'Kyrgyz (Кыргыз)',
+      'Lao (ລາວ)',
+      'Latvian (latviešu)',
+      'Lithuanian (lietuvių)',
+      'Malay (Bahasa Malaysia)',
+      'Malayalam (മലയാളം)',
+      'Maltese (Malti)',
+      'Māori (Reo Māori)',
+      'Marathi (मराठी)',
+      'Mongolian (ᠮᠤᠨᠭᠭᠤᠯ ᠬᠡᠯᠡ)',
+      'Nepali (नेपाली)',
+      'Norwegian (norsk)',
+      'Occitan',
+      'Odia (ଓଡ଼ିଆ)',
+      'Pashto (پښتو)',
+      'Persian (فارسى)',
+      'Polish (polski)',
+      'Portuguese (português)',
+      'Punjabi (ਪੰਜਾਬੀ)',
+      'Romanian (română)',
+      'Russian (русский)',
+      'Sanskrit (संस्कृत)',
+      'Serbian (srpski)',
+      'Sesotho',
+      'Sindhi (سِنڌِي)',
+      'Sinhala (සිංහල)',
+      'Slovak (slovenčina)',
+      'Slovenian (slovenščina)',
+      'Spanish (español)',
+      'Swedish (svenska)',
+      'Tagalog (Tagalog)',
+      'Tajik (Тоҷикӣ)',
+      'Tamil (தமிழ்)',
+      'Tatar (Татарча)',
+      'Telugu (తెలుగు)',
+      'Thai (ไทย)',
+      'Tibetan (བོད་ཡིག)',
+      'Tswana (Setswana)',
+      'Turkish (Türkçe)',
+      'Turkmen (türkmençe)',
+      'Ukrainian (українська)',
+      'Urdu (اُردو)',
+      'Uyghur (ئۇيغۇرچە)',
+      'Uzbek (oʻzbek)',
+      'Vietnamese (Tiếng Việt)',
+      'Xhosa (isiXhosa)',
+      'Yi (ꆈꌠꁱꂷ)',
+      'Zulu (isiZulu)',
+    ],
+    enumPicker: 'select',
   },
 ];
 
