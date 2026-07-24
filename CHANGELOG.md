@@ -1,3 +1,10 @@
+## [1.5.1](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.5.0...v1.5.1) (2026-07-24)
+
+
+### Bug Fixes
+
+* allow releases for non-conventional commits ([385314d](https://github.com/b-yp/logseq-ai-auto-tags/commit/385314d8e58075828a44128648cabee8afc7e994))
+
 # [1.5.0](https://github.com/b-yp/logseq-ai-auto-tags/compare/v1.4.0...v1.5.0) (2025-07-19)
 
 
