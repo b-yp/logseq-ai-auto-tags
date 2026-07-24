@@ -5,6 +5,13 @@ module.exports = {
       "@semantic-release/commit-analyzer",
       {
         preset: "conventionalcommits",
+        // Keep Conventional Commits semantics, but do not block releases for
+        // older/non-conventional messages in the repository history.
+        releaseRules: [
+          { type: "feat", release: "minor" },
+          { type: "fix", release: "patch" },
+          { release: "patch" },
+        ],
       },
     ],
     "@semantic-release/release-notes-generator",
@@ -20,7 +27,7 @@ module.exports = {
       "@semantic-release/exec",
       {
         prepareCmd:
-          "zip -qq -r logseq-ai-auto-tags-${nextRelease.version}.zip dist readme.md logo.svg LICENSE package.json",
+          "zip -qq -r logseq-ai-auto-tags-${nextRelease.version}.zip dist README.md logo.svg LICENSE package.json",
       },
     ],
     [
